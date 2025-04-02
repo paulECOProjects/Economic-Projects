@@ -72,3 +72,45 @@ for( I in 1:nrow(SummaryData) ){
 }
 
 View( SummaryData )
+
+#  reading the US state-boundary shapefile and converting it to an R sf-format spatial data.frame. 
+ZippedFile <- list.files( PathIn, full.names = TRUE, pattern = "zip$")
+
+file.remove( list.files(PathTemp, full.names=TRUE) )
+
+unzip( ZippedFile, exdir=PathTemp, junkpaths=TRUE)
+
+States <- st_read( dsn=PathTemp )
+
+Merge <- merge(States,SummaryData,by.x="NAME",by.y="STATEFIP_ValueLabel", all.x=TRUE)
+
+mapview(Merge,zcol="Average_LogIncome")
+
+# Calculating the predicted/fitted annual income (in dollars) for a woman aged 25 with a college degree.
+Dollar<- exp(predict(My_OLS,data.frame(HS_Grad=0,Some_College=0,College_Grad=1,Post_College=0,Female=1,AGE=25,AgeSquared=625)))
+print(Dollar)
+# Calculating the predicted/fitted annual income (in dollars) for a man aged 40 with a high school degree.
+Dollar2 <- exp(predict(My_OLS,data.frame(HS_Grad=1,Some_College=0,College_Grad=0,Post_College=0,Female=0,AGE=40,AgeSquared=1600)))
+print(Dollar2)
+
+# Creating a line graph with the respondent’s age on the horizontal axis and the
+# median of actual annual income (in log form) taken from the Current Population Survey. Graph is limited from ages 20 - 70. 
+# Create a second line to this graph with age on the horizontal axis and on the vertical
+# axis, put the median of predicted/fitted log income derived from the OLS regression
+
+PositiveDT <- setDT( PositiveIncome )
+AgeSummaryDT <- PositiveDT[, 
+                             list(LogActual = median( log(INCTOT) ), 
+                                  LogPredicted = median( Fitted_Value) ), 
+                             by=AGE]
+setkeyv(AgeSummaryDT, cols="AGE")
+View(AgeSummaryDT)
+
+AgeDTSubset <- subset(AgeSummaryDT, subset=(AGE >= 20) & (AGE <= 70) )
+
+G <- ggplot(data = AgeDTSubset) + geom_point( aes(x=AgeDTSubset$AGE, y=AgeDTSubset$LogActual), color="dodgerblue") +
+  labs(x="Age", y="Log of Income") + geom_point( aes(x=AgeDTSubset$AGE, y=AgeDTSubset$LogPredicted), color="red") +
+  labs(x="Age", y="Log of Income") + theme_bw()
+print(G) # Red dots are predicted income and blue dots are actual income
+ggsave(path=PathOut,filename="plot.png",plot=G)
+
