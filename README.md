@@ -1,1 +1,1 @@
-# Economic-Projects
+# These are projects I have completed whilst taking a Data Science and Machine Learning class at my university. Valuable skills were learned using R to manipulate and visualize data as well as creating regression models to predict outcomes. Data was provided from my University class.
