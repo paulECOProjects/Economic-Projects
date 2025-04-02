@@ -1,0 +1,67 @@
+rm(list=ls())
+
+library(ggplot2)
+
+Root <- "C:/Users/?/Downloads"  # Replace "?" with your username
+PathIn <- file.path(Root, "ECO", "Project3")
+
+load( file=file.path(PathIn, "CPS_Data_Homework3.RData") ) # Object is named CPS
+
+View( CPS )
+
+load( file=file.path(PathIn, "CPS_Codebooks_Homework3.RData") )
+
+# Limiting analysis to the people who are currently employed (in March 2021) and who earned positive annual income in the previous year. 
+PositiveIncome <- subset(CPS, subset = ( EMPSTAT %in% c(10L,12L) ) & ( INCTOT > 0 )  )
+
+PositiveIncome$EducLevels <- NA_character_  
+
+# Identify respondents with less than a high school degree:
+PositiveIncome$EducLevels <- with(PositiveIncome, 
+     ifelse(test = EDUC %in% c(2L, 10L, 20L, 30L, 40L, 50L, 60L, 71L), 
+            yes = "LessThan_HS_Grad", no = EducLevels))
+# High school diploma (but no further):
+PositiveIncome$EducLevels <- with(PositiveIncome, 
+     ifelse(EDUC %in% c(73L), "HS_Grad", EducLevels))
+# Some college, but less than college graduate:
+PositiveIncome$EducLevels <- with(PositiveIncome, 
+     ifelse(EDUC %in% c(81L, 91L:92L), "Some_College", EducLevels))
+# College graduate:
+PositiveIncome$EducLevels <- with(PositiveIncome, 
+                                  ifelse(EDUC %in% c(111L), "College_Grad", EducLevels))
+# Any post-college education:
+PositiveIncome$EducLevels <- with(PositiveIncome, 
+                                  ifelse(EDUC %in% c(123L:125L), "Post_College", EducLevels))
+
+PositiveIncome$HS_Grad <-      with(PositiveIncome, 
+                                 ifelse(EducLevels=="HS_Grad", 1, 0) )
+PositiveIncome$Some_College <- with(PositiveIncome, 
+                                 ifelse(EducLevels=="Some_College", 1, 0) )
+PositiveIncome$College_Grad <- with(PositiveIncome, 
+                                 ifelse(EducLevels=="College_Grad", 1, 0) )
+PositiveIncome$Post_College<- with(PositiveIncome, 
+                                 ifelse(EducLevels=="Post_College", 1, 0) )
+
+PositiveIncome$respondentSex <- with(PositiveIncome, 
+                                     ifelse(SEX_ValueLabel=="Male", 1, 0) ) # Creates respondentSex variable and gives 1 if male and 0 if female based on SEX_ValueLabel
+PositiveIncome$respondentAge <- PositiveIncome$AGE # Creates respondentAge variable and assigns the age column from PosiiveIncome to it
+PositiveIncome$ageSquared <- (PositiveIncome$AGE)^2 # Creates ageSquared variable and assigns the squared value of the age column from PositiveIncome data frame to it
+
+My_OLS <- lm( log(INCTOT) ~ HS_Grad + Some_College + College_Grad + Post_College + respondentSex + ageSquared + respondentAge, 
+              data=PositiveIncome)
+My_OLS$coefficients
+exp(My_OLS$coefficients)
+
+length( My_OLS$fitted.values )
+PositiveIncome$Fitted_Value <- My_OLS$fitted.values
+
+SummaryData <- unique( PositiveIncome[, c("STATEFIP", "STATEFIP_ValueLabel")] ) # Creates a data frame of unique STATEFIP and STATEFIP_valueLabel elements
+SummaryData$Average_LogIncome <- NA_real_ # Creates a new column called Average_LogIncome and fills it with N/A values
+
+for( I in 1:nrow(SummaryData) ){
+  fips <- SummaryData$STATEFIP[I]
+  X <- subset(PositiveIncome, subset=(STATEFIP==fips) ) 
+  SummaryData$Average_LogIncome[I] <- with(X, mean(Fitted_Value, na.rm=TRUE) )
+}
+
+View( SummaryData )
