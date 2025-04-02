@@ -1,0 +1,27 @@
+rm(list=ls()) # Clears all objects from workspace
+
+Root <- "C:/Users/?/Downloads"  # Replace "?" with your username
+PathIn <- file.path(Root, "DataECO") # "DataECO" is the folder I use that contains the data used for this project
+
+load( file=file.path(PathIn, "CPS_Extract.RData") ) # Object is named CPS
+
+names(CPS) # Shows the names contained in the CPS object
+
+VariableAttributes <- attributes( CPS$MARST ) # Getting the attributes of MARST (martial status)
+ValueLabels <- VariableAttributes$labels  # ValueLabels is an integer vector that specifies the codes of the MARST variable. Each distinct integer code has a name
+print(ValueLabels) # Shows the name for each distinct integer code
+
+# Creating a data frame for MARST's integer values and associated labels
+TinyDF <- data.frame( MARST_IntegerValue = ValueLabels, MARST_ValueLabel=names(ValueLabels),
+                      row.names=NULL)
+View( TinyDF)
+
+# Merging TinyDF with the CPS data frame
+CPS2 <- merge(CPS, TinyDF, 
+              by.x="MARST", by.y= "MARST_IntegerValue", 
+              all.x=TRUE)
+
+View( CPS2 ) # Opens up a table containing the combined data of CPS and TinyDF
+
+# Tabulating the new variable
+with(CPS2, table(MARST_ValueLabel, useNA="ifany") )
