@@ -14,6 +14,7 @@ load( file=file.path(PathIn, "CPS_Codebooks_Homework3.RData") )
 # Limiting analysis to the people who are currently employed (in March 2021) and who earned positive annual income in the previous year. 
 PositiveIncome <- subset(CPS, subset = ( EMPSTAT %in% c(10L,12L) ) & ( INCTOT > 0 )  )
 
+# Initialize new variable to missing 
 PositiveIncome$EducLevels <- NA_character_  
 
 # Identify respondents with less than a high school degree:
@@ -33,6 +34,7 @@ PositiveIncome$EducLevels <- with(PositiveIncome,
 PositiveIncome$EducLevels <- with(PositiveIncome, 
                                   ifelse(EDUC %in% c(123L:125L), "Post_College", EducLevels))
 
+# Creating 4 dummy variables for each level of education using the plain character version of the education variable and ifelse() function
 PositiveIncome$HS_Grad <-      with(PositiveIncome, 
                                  ifelse(EducLevels=="HS_Grad", 1, 0) )
 PositiveIncome$Some_College <- with(PositiveIncome, 
@@ -42,18 +44,23 @@ PositiveIncome$College_Grad <- with(PositiveIncome,
 PositiveIncome$Post_College<- with(PositiveIncome, 
                                  ifelse(EducLevels=="Post_College", 1, 0) )
 
+# Creating additional dummy variable for respondent's sex and two variables for respondent's age and age squared
 PositiveIncome$respondentSex <- with(PositiveIncome, 
                                      ifelse(SEX_ValueLabel=="Male", 1, 0) ) # Creates respondentSex variable and gives 1 if male and 0 if female based on SEX_ValueLabel
 PositiveIncome$respondentAge <- PositiveIncome$AGE # Creates respondentAge variable and assigns the age column from PosiiveIncome to it
 PositiveIncome$ageSquared <- (PositiveIncome$AGE)^2 # Creates ageSquared variable and assigns the squared value of the age column from PositiveIncome data frame to it
 
+# Running the regression with new variables
 My_OLS <- lm( log(INCTOT) ~ HS_Grad + Some_College + College_Grad + Post_College + respondentSex + ageSquared + respondentAge, 
               data=PositiveIncome)
+# Show estimated beta_hat coefficients
 My_OLS$coefficients
+# Interpret data in terms of plain dollar of income
 exp(My_OLS$coefficients)
 
-length( My_OLS$fitted.values )
-PositiveIncome$Fitted_Value <- My_OLS$fitted.values
+# Calculating the average fitted value for (log) income for each U.S. state (and the District of Columbia).
+length( My_OLS$fitted.values ) 
+PositiveIncome$Fitted_Value <- My_OLS$fitted.values # Add the fitted values from the OLS regression as a new variable in the PositiveIncome dataset
 
 SummaryData <- unique( PositiveIncome[, c("STATEFIP", "STATEFIP_ValueLabel")] ) # Creates a data frame of unique STATEFIP and STATEFIP_valueLabel elements
 SummaryData$Average_LogIncome <- NA_real_ # Creates a new column called Average_LogIncome and fills it with N/A values
