@@ -1,0 +1,91 @@
+rm(list=ls())
+
+library(data.table)  
+library(ggplot2)
+
+Root <- "C:/Users/?/Downloads"  # Replace "?" with username
+PathIn <- file.path(Root, "ECO", "Project7")
+
+load( file=file.path(PathIn, "CPS_Analysis_Homework_7.RData") )
+
+Codes <- unique(  Analysis[, list(EMPSTAT, EMPSTAT_ValueLabel) ]   )
+View( Codes )
+
+# HasJob is a binary dependent variable: Have job? 1 = Yes, 0 = No
+Analysis[, HasJob := ifelse(EMPSTAT %in% c(10L, 12L), 1L, 0L)]
+Analysis[, table(HasJob, EMPSTAT, useNA="ifany")]
+
+# run a logit model with age as the only explanatory variable
+My_Logit <- glm(formula = HasJob ~ AGE, 
+                family = binomial(link = "logit"), 
+                data = Analysis)
+
+Analysis[, PredictedProbs := My_Logit$fitted.values]
+
+SummaryDT <- Analysis[, list( Probs = mean(PredictedProbs),
+                              AverageEmployed = mean(HasJob) ), 
+                        by=list(AGE) ][order(AGE)]
+
+# create a ggplot2 ine graph with one line depicting the AGE-specific predicted probabilities
+# (the Probs variable), and a second line depicting the AGE-specific average of the proportion
+# employed (using the AverageEmployed variable)
+
+G <- ggplot(data=SummaryDT) +  geom_line( aes(x=AGE, y=Probs), color="dodgerblue", linewidth=1.25 ) + 
+  geom_line( aes(x=AGE, y=AverageEmployed), color="red", linewidth=1.25 ) + 
+  labs( y="Probability of Employment", x="Age" ) +
+  theme_bw() # Creates a line graph of probability of employment against age
+
+print(G)
+ggsave(path=PathIn,filename="plot.png",plot=G) # Saves the graph to PathIn and names it "plot.png"
+
+# running a second logit model where AGE and AgeSquared are the only explanatory variables
+My_Logit2 <- glm(formula = HasJob ~ AGE + AgeSquared, 
+                family = binomial(link = "logit"), 
+                data = Analysis)
+names(My_Logit2)
+
+summary(My_Logit2)
+
+# add the predicted probabilities to the Analysis data.table
+Analysis[, PredictedProbs2 := My_Logit2$fitted.values ] # Creates a new variable and assigns it the fitted values from the logit model
+
+SummaryDT <- Analysis[, list( Probs2 = mean(PredictedProbs2),
+                              AverageEmployed = mean(HasJob) ), 
+                      by=list(AGE) ][order(AGE)] # Creates a subset of data from Analysis which includes the averaged value of predicted 
+                                                # probability of employment and the averaged value of the actual probabilities of employment
+
+# create a ggplot2 line graph with one line depicting the AGE-specific predicted probabilities and
+# a second line depicting the AGE-specific average of the proportion employed directly from the
+# data.
+G2 <- ggplot(data=SummaryDT) +  geom_line( aes(x=AGE, y=Probs2), color="dodgerblue", linewidth=1.25 ) + 
+  geom_line( aes(x=AGE, y=AverageEmployed), color="red", linewidth=1.25 ) + 
+  labs( y="Probability of Employment", x="Age" ) +
+  theme_bw() # Creates a line graph of probability of employment against age
+  
+print(G2)
+ggsave(path=PathIn,filename="plot2.png",plot=G2) # Saves the graph to PathIn and names it "plot2.png"
+
+# run a third logit model using AGE, AgeSquared, and Female as the explanatory variables
+y_Logit3 <- glm(formula = HasJob ~ AGE + AgeSquared + Female, 
+                 family = binomial(link = "logit"), 
+                 data = Analysis)
+summary(My_Logit3)
+
+names(My_Logit3)
+
+# 4 estimated Beta_Hat coefficients: (1) The intercept term (constant); (2) the
+# coefficient on AGE; (3) the coefficient on AgeSquared; and (4) the coefficient on female:
+Beta_Hat <- My_Logit3$coefficients
+
+# the vcov() function obtains the estimated variance matrix that's needed for hypothesis testing:
+Var_Beta_Hat <- vcov(My_Logit3)
+
+# Compute the test statistic for the null hypothesis that the true beta coefficient on the Female variable is equal to 0.
+TestVector <- c(0.0, 0.0, 0.0, 1.0)
+TestScalar <- 0.0
+TestNumerator <- TestVector %*% Beta_Hat - TestScalar
+TestDenominator <- sqrt( TestVector %*% Var_Beta_Hat %*% TestVector )
+TestStatistic = TestNumerator/TestDenominator
+print(TestStatistic)
+
+pnorm( TestStatistic, lower.tail=TRUE)
