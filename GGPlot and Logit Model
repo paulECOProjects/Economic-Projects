@@ -1,0 +1,58 @@
+rm(list=ls())
+
+library(data.table)  
+library(ggplot2)
+library(patchwork) 
+
+Root <- "C:/Users/?/Downloads"  # Change "?" to your username
+PathIn <- file.path(Root, "ECO", "Project8")
+
+PathFigures <- file.path(Root, "ECO", "Project8")
+load( file=file.path(PathIn, "CPS_Analysis_Homework_8.RData") )
+
+Codes <- unique(  Analysis[, list(EMPSTAT, EMPSTAT_ValueLabel) ]   )
+View( Codes )
+
+Analysis[, HasJob := ifelse(EMPSTAT %in% c(10L, 12L), 1L, 0L)]
+Analysis[, table(HasJob, EMPSTAT, useNA="ifany")] # Double-check that our coding is OK
+
+Analysis[, EducF := factor(EducLevels, 
+           levels=c("LessThan_HS_Grad", "HS_Grad",
+                    "Some_College", "College_Grad", "Post_College"))]
+
+SummaryDT <- Analysis[, list(ProportionEmployed = mean(HasJob)), 
+                 by=list(EducF, AGE)][order(EducF, AGE)]
+
+G <- ggplot(data=SummaryDT) + 
+     geom_line( aes(x=AGE, y=ProportionEmployed, color=EducF), linewidth=1.5 ) +
+     scale_x_continuous( "Age",  breaks=seq(25, 65, 5)) +
+     scale_y_continuous( breaks=seq(0.0, 1.0, 0.1), limits=c(0,1)) + 
+     labs( color="Educational\nAttainment" ) +
+     theme_bw()
+print(G)
+
+My_Logit <- glm(formula = HasJob ~ AGE + AgeSquared + 
+                            HS_Grad + Some_College + College_Grad + Post_College, 
+                family = binomial(link = "logit"), 
+                data = Analysis)
+summary(My_Logit) 
+
+Analysis[, PredictedProbs := My_Logit$fitted.values ]
+
+SummaryDT2 <- Analysis[, list( Pred_Probs = mean(PredictedProbs) ), 
+                         by=list(EducF, AGE) ][order(EducF, AGE)]
+
+G2 <- ggplot(data=SummaryDT2) + 
+  geom_line( aes(x=AGE, y=Pred_Probs, color=EducF), linewidth=1.5 ) +
+  scale_x_continuous( "Age",  breaks=seq(25, 65, 5)) +
+  scale_y_continuous( breaks=seq(0.0, 1.0, 0.1), limits=c(0,1)) +
+  labs( y="Predicted Probabilities", color="Educational\nAttainment") +
+  theme_bw()
+print(G2)
+
+Both <- G + G2
+print( Both )
+
+ggsave(plot=Both, filename=file.path(PathFigures, "Employment_by_Education.png"),
+       device="png", units="in", dpi=720, width=12, height=10)
+
