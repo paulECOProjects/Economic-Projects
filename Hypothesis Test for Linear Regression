@@ -70,4 +70,45 @@ print(TestStatistic)
 
 pnorm(TestStatistic, lower.tail=FALSE) 
 
+Analysis <- subset(CPS, subset=AGE >= 25 & AGE <= 65 & EMPSTAT %in% c(10L, 12L) & INCTOT > 0)
+with(Analysis, summary(INCTOT))                  # No missing values
+with(Analysis, table(EducLevels, useNA="ifany")) # No missing values
 
+setDT( Analysis ) # Creates data.table
+
+Percentiles <- Analysis[, quantile(AGE  ) ] # Finds the 25th, 50th, and 75th percentiles of the AGE variable in the Analysis subset
+print( Percentiles ) # Prints out the percentiles of the AGE variable from the Analysis subset
+
+Analysis[, S25 := ifelse( AGE <= quantile(AGE,.25) , 1,0 ) ] # If the age is in the 25th percentile, enter 1 into S25
+Analysis[, S50 := ifelse( AGE <= quantile(AGE,.50), 1,0) ] # If the age is in the 50th percentile, enter 1 into S50
+Analysis[, S75 := ifelse( AGE <= quantile(AGE,.75), 1,0) ] # If the age is in the 75th percentile, enter 1 into S75
+
+# run regression with new spline variables (S25, S50, S75)
+My_OLS <- lm( log(INCTOT) ~ AGE + S25 + S50 + S75, data=Analysis)
+summary(My_OLS)
+
+Coeffs <- My_OLS$coefficients
+print( Coeffs )
+print( Percentiles )
+
+# estimated slope of the relationship between age and the log of income at age 36
+personA <- predict(My_OLS, data.frame(AGE = 36, S25 = 0, S50 = 1, S75 = 1)) - 10.10085766 # Estimates the slope at age 36
+print(personA)
+
+# estimated slope at age 48
+personB <- predict(My_OLS, data.frame(AGE = 48, S25 = 0, S50 = 0, S75 = 1)) - 10.10085766 # Estimates the slope at age 48
+print(personB)
+
+# create a graph that depicts the relationship between AGE and the predicted value of log(INCTOT) based on the spline
+# add an additional line to that graph with the average value of log(INCTOT) by AGE
+Analysis[, PredictedIncome := My_OLS$fitted.values]
+
+SummaryDT <- Analysis[, list(Predicted = mean(PredictedIncome), 
+                             Actual = mean( log(INCTOT) ) ), by=list(AGE)][order(AGE)]
+View( SummaryDT )
+
+G <- ggplot(data=SummaryDT) + geom_line( aes(x=AGE, y=Predicted), color="dodgerblue", linewidth=1.5) +
+  geom_line( aes(x=AGE, y=Actual), color="red", linewidth=1.5) +
+  labs(y="Log Income", x="Age") +
+  theme_bw() # Plots a line graph of actual and predicted log income against age
+print(G)
