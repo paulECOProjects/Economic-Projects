@@ -1,0 +1,73 @@
+rm(list=ls())
+
+library(data.table)
+library(ggplot2)
+Root <- "C:/Users/?/Downloads" # replace "?" with username
+
+PathIn <- file.path(Root, "ECO 322", "HW 5")
+
+load( file=file.path(PathIn, "CPS_Data_Homework5.RData") ) # Object is named CPS
+
+# creating new variable for categories of completed schooling
+CPS$EducLevels <- NA_character_  
+# Identify respondents with less than a high school degree:
+CPS$EducLevels <- with(CPS, 
+     ifelse(test = EDUC %in% c(2L, 10L, 20L, 30L, 40L, 50L, 60L, 71L), 
+            yes = "LessThan_HS_Grad", no = EducLevels))
+# High school diploma (but no further):
+CPS$EducLevels <- with(CPS, 
+     ifelse(EDUC %in% c(73L), "HS_Grad", EducLevels))
+# Some college, but less than college graduate:
+CPS$EducLevels <- with(CPS, 
+     ifelse(EDUC %in% c(81L, 91L:92L), "Some_College", EducLevels))
+# College graduate:
+CPS$EducLevels <- with(CPS, 
+                                  ifelse(EDUC %in% c(111L), "College_Grad", EducLevels))
+# Any post-college education:
+CPS$EducLevels <- with(CPS, 
+                                  ifelse(EDUC %in% c(123L:125L), "Post_College", EducLevels))
+
+# create 4 dummy variables for the 5 categories of education 
+CPS$HS_Grad <-      with(CPS, ifelse(EducLevels=="HS_Grad", 1L, 0L) )
+CPS$Some_College <- with(CPS, ifelse(EducLevels=="Some_College", 1L, 0L) )
+CPS$College_Grad <- with(CPS, ifelse(EducLevels=="College_Grad", 1L, 0L) )
+CPS$Post_College <- with(CPS, ifelse(EducLevels=="Post_College", 1L, 0L) )
+
+# dummy variable for Female
+CPS$Female <- with(CPS, ifelse(SEX==2L, 1L, 0L) )
+# adding AgeSquared
+CPS$AgeSquared <- with(CPS, AGE^2 )
+
+HasIncome <- subset(CPS, subset=((AGE >= 25 & AGE <= 65) & (INCTOT > 0))) # Creates a subset of data using subset() function on the CPS object. The subset contains respondents from age 25 to 65 and with a positive annual income
+
+HasIncome$AGE_Some_College <- with(HasIncome, 
+                                   ifelse(EducLevels=="Some_College", AGE, 0) ) # If respondent's educational level is "Some_College" input the AGE into AGE_Some_College column
+HasIncome$AGE_College_Grad <- with(HasIncome, 
+                                   ifelse(EducLevels=="College_Grad", AGE, 0) ) # If respondent's educational level is "College_Grad" input the AGE into AGE_College_Grad column
+HasIncome$AGE_Post_College <- with(HasIncome, 
+                                   ifelse(EducLevels=="Post_College", AGE, 0) ) # If respondent's educational level is "Post_College" input the AGE into AGE_Post_College column
+
+# run the regression with new variables and store it into My_OLS
+My_OLS <- lm( log(INCTOT) ~ HS_Grad + Some_College + College_Grad + Post_College + 
+                Female + AGE + AgeSquared + 
+                AGE_Some_College + AGE_College_Grad + AGE_Post_College, 
+              data=HasIncome)
+
+summary(My_OLS)
+
+# testing null hypothesis that the true parameter on AGE_Some_College equals the true parameter on AGE_College_Grad
+
+Var_beta_hat <- vcov( My_OLS ) 
+
+TestVector <- c(0.0,0.0, 0.0,0.0,0.0, 0.0,0.0,0.0, 1.0 , -1.0, 0.0) 
+TestScalar <- 0            
+
+Test_numerator <- TestVector %*% My_OLS$coefficients - TestScalar
+Test_denominator <- sqrt( (TestVector %*% Var_beta_hat) %*% TestVector )
+TestStatistic <- Test_numerator/Test_denominator 
+
+print(TestStatistic)
+
+pnorm(TestStatistic, lower.tail=FALSE) 
+
+
