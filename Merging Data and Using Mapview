@@ -1,0 +1,50 @@
+rm( list=ls() ) # Clears all objects from workspace
+
+# Import libraries
+library(sf)
+library(mapview)
+
+Root <- "C:/Users/?/Downloads" # Replace "?" with your username
+# PathIn contains the location of the zipped shapefile that I've downloaded from the US Census Bureau website, and also the location of the .csv file supplied from my university
+PathIn <- file.path(Root, "ECO", "Project2") 
+PathTemp <- file.path(Root,"ECO", "Temp")
+PathOut <- file.path(Root, "ECO","Project2") 
+
+ZippedFile <- list.files( PathIn, full.names = TRUE, pattern = "zip$")
+print( ZippedFile )
+file.remove( list.files(PathTemp, full.names=TRUE) )
+unzip( ZippedFile, exdir=PathTemp, junkpaths=TRUE)
+print( list.files( PathTemp ) ) 
+
+States <- st_read( dsn=PathTemp )
+View( States[1:10,] )
+
+nrow( States ) 
+View(States)
+
+mapview( States, col.regions = "red", alpha.regions = 0.3)
+
+lapply( States, class )
+
+class( States$STATEFP ) 
+
+CsvFile <- list.files( PathIn, full.names = TRUE, pattern = "csv$")
+print( CsvFile )
+
+StateRace <- read.csv( file= 'ECO/Project2/CPS_Race_by_State.csv')
+lapply( StateRace, class )
+class( StateRace$FipsCode )
+
+WhitePercent <- subset( StateRace, subset = (Race==100L) )
+View( WhitePercent )
+nrow( WhitePercent )
+
+States$StateFP <- as.integer(States$STATEFP) # Converting the STATEFP column from the States vector
+                                             # into an integer.
+Merge <- merge(States, WhitePercent,
+                      by.x="StateFP", by.y="FipsCode",
+                      all.x=TRUE)
+
+View( Merge )  
+
+mapview(Merge, zcol="RacePercentages") 
